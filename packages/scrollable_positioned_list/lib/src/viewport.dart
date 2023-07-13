@@ -231,10 +231,35 @@ class UnboundedRenderViewport extends RenderViewport {
     _maxScrollExtent = 0.0;
     _hasVisualOverflow = false;
 
+    final RenderSliver? leadingNegativeChild = childBefore(center!);
+    final RenderSliver? trailingPositiveChild = childAfter(center!);
+    final double leadingOffset = (leadingNegativeChild != null
+        ? leadingNegativeChild.geometry?.scrollExtent ?? 0
+        : 0);
+    final double trailingOffset = (trailingPositiveChild != null
+        ? trailingPositiveChild.geometry?.scrollExtent ?? 0
+        : 0);
+    final double centerBodyOffset =
+        (center != null ? center!.geometry?.scrollExtent ?? 0 : 0);
+
     // centerOffset is the offset from the leading edge of the RenderViewport
     // to the zero scroll offset (the line between the forward slivers and the
     // reverse slivers).
-    final double centerOffset = mainAxisExtent * anchor - correctedOffset;
+    double centerOffset = mainAxisExtent * anchor - correctedOffset;
+    if (leadingOffset + centerBodyOffset + trailingOffset > 0) {
+      if (leadingOffset + centerBodyOffset + trailingOffset < mainAxisExtent) {
+        centerOffset = math.max(
+          leadingOffset,
+          mainAxisExtent * anchor - centerBodyOffset - trailingOffset,
+        );
+      } else {
+        centerOffset = centerOffset.clamp(
+          mainAxisExtent - centerBodyOffset - trailingOffset,
+          leadingOffset +
+              (leadingOffset > mainAxisExtent ? mainAxisExtent * anchor : 0),
+        );
+      }
+    }
     final double reverseDirectionRemainingPaintExtent =
         centerOffset.clamp(0.0, mainAxisExtent);
     final double forwardDirectionRemainingPaintExtent =
@@ -255,8 +280,6 @@ class UnboundedRenderViewport extends RenderViewport {
         centerCacheOffset.clamp(0.0, fullCacheExtent);
     final double forwardDirectionRemainingCacheExtent =
         (fullCacheExtent - centerCacheOffset).clamp(0.0, fullCacheExtent);
-
-    final RenderSliver? leadingNegativeChild = childBefore(center!);
 
     if (leadingNegativeChild != null) {
       // negative scroll offsets
